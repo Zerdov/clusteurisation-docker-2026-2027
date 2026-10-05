@@ -1,15 +1,220 @@
-# ===========================================================================
-# NEBULA : le livrable du projet. 12 TODO.
-#
-#   export REGISTRY=registry.local:5000 TAG=v1
-#   docker stack deploy -c swarm/stack.nebula.todo.yml --with-registry-auth nebula
-#
-# Les trois services applicatifs sont ecrits et fonctionnent : vous ne touchez
-# pas a leur code. Tout ce qui est note est ici, dans ce fichier et dans vos
-# procedures.
-#
-# Rappel du bareme : aucun point pour le nombre de services. Cinq services
-# parfaitement exploites valent mieux que huit inexploitables.
-# ===========================================================================
-
 services:
+
+  db:
+    image: ${REGISTRY}/postgres:18-alpine
+    environment:
+      POSTGRES_DB: nebula
+      POSTGRES_USER: nebula
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+    secrets: [pg_password]
+    configs:
+      - source: nebula_db_init
+        target: /docker-entrypoint-initdb.d/init.sql
+    volumes:
+      # Postgres 18+ : la racine, pas /data.
+      - db_data:/var/lib/postgresql
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nebula -d nebula"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.labels.tier == data]
+      update_config:
+        order: stop-first        # une seule base : on arrete avant de redemarrer
+        failure_action: rollback
+      restart_policy: { condition: on-failure, delay: 5s }
+      resources:
+        limits: { memory: 512M }
+
+  cache:
+    image: ${REGISTRY}/redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.labels.tier != data]
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      restart_policy: { condition: on-failure, delay: 5s }
+      resources:
+        limits: { memory: 128M }
+
+  bus:
+    image: ${REGISTRY}/rabbitmq:4-management-alpine
+    # RabbitMQ 4 : RABBITMQ_DEFAULT_PASS_FILE est deprecie. On ecrit
+    # default_user / default_pass depuis le secret, puis on lance l'entree normale.
+    command:
+      - sh
+      - -c
+      - printf 'default_user = nebula\ndefault_pass = %s\n' "$$(cat /run/secrets/bus_password)" > /tmp/nebula.conf && RABBITMQ_CONFIG_FILE=/tmp/nebula.conf exec docker-entrypoint.sh rabbitmq-server
+    secrets: [bus_password]
+    networks: [internal]          # pas de port publie : l'UI d'admin se joint par tunnel
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.labels.tier == data]
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      restart_policy: { condition: on-failure, delay: 5s }
+      # Sous ~1,5 Go, RabbitMQ bloque la file sans message clair (annexe D).
+      resources:
+        limits: { memory: 1536M }
+
+  comptes:
+    image: ${REGISTRY}/nebula-comptes:${TAG}
+    environment:
+      PGHOST: db
+      POSTGRES_DB: nebula
+      POSTGRES_USER: nebula
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+      APP_VERSION: ${TAG}
+    secrets: [pg_password]
+    networks: [public, internal]
+    deploy:
+      replicas: 2
+      placement:
+        constraints: [node.labels.tier != data]
+        preferences:
+          - spread: node.id
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first       # la nouvelle version demarre avant l'arret de l'ancienne
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        order: start-first
+      restart_policy: { condition: on-failure, delay: 5s }
+      resources:
+        limits: { memory: 128M }
+        reservations: { memory: 64M }
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.comptes.rule=PathPrefix(`/api/comptes`)
+        - traefik.http.routers.comptes.entrypoints=web
+        - traefik.http.routers.comptes.middlewares=strip-comptes
+        - traefik.http.middlewares.strip-comptes.stripprefix.prefixes=/api
+        - traefik.http.services.comptes.loadbalancer.server.port=3000
+
+  publications:
+    image: ${REGISTRY}/nebula-publications:${TAG}
+    # Meme astuce que bus : l'appli lit une AMQP_URL complete, composee depuis le secret.
+    command:
+      - sh
+      - -c
+      - export AMQP_URL="amqp://nebula:$$(cat /run/secrets/bus_password)@bus:5672" && exec node src/index.js
+    environment:
+      PGHOST: db
+      POSTGRES_DB: nebula
+      POSTGRES_USER: nebula
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+      COMPTES_URL: http://comptes:3000
+      REDIS_URL: redis://cache:6379
+      APP_VERSION: ${TAG}
+    secrets: [pg_password, bus_password]
+    networks: [public, internal]
+    deploy:
+      replicas: 2
+      placement:
+        constraints: [node.labels.tier != data]
+        preferences:
+          - spread: node.id
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        order: start-first
+      restart_policy: { condition: on-failure, delay: 5s }
+      resources:
+        limits: { memory: 128M }
+        reservations: { memory: 64M }
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.publications.rule=PathPrefix(`/api/publications`) || PathPrefix(`/api/fil`)
+        - traefik.http.routers.publications.entrypoints=web
+        - traefik.http.routers.publications.middlewares=strip-publications
+        - traefik.http.middlewares.strip-publications.stripprefix.prefixes=/api
+        - traefik.http.services.publications.loadbalancer.server.port=3000
+
+  worker-medias:
+    image: ${REGISTRY}/nebula-worker-medias:${TAG}
+    command:
+      - sh
+      - -c
+      - export AMQP_URL="amqp://nebula:$$(cat /run/secrets/bus_password)@bus:5672" && exec node src/index.js
+    environment:
+      SORTIE_DIR: /data
+      APP_VERSION: ${TAG}
+    secrets: [bus_password]
+    # Volume local au noeud : les traces ne suivent pas le worker d'un noeud a l'autre.
+    # Acceptable : le worker n'ecrit qu'une trace de demonstration (cahier, annexe C).
+    volumes:
+      - traces:/data
+    networks: [internal]
+    deploy:
+      replicas: 2
+      placement:
+        constraints: [node.labels.tier != data]
+        preferences:
+          - spread: node.id
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        order: start-first
+      restart_policy: { condition: on-failure, delay: 5s }
+      resources:
+        limits: { memory: 128M }
+        reservations: { memory: 64M }
+
+volumes:
+  db_data:
+  traces:
+
+networks:
+  public:
+    external: true
+    name: edge_public        # cree par swarm/stack.edge.yml
+  internal:
+    driver: overlay
+
+secrets:
+  pg_password:
+    external: true           # cree hors de ce fichier, jamais dans Git
+  bus_password:
+    external: true
+
+configs:
+  nebula_db_init:
+    external: true           # docker config create nebula_db_init db/init.sql

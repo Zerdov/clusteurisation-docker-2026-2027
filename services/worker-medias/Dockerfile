@@ -11,6 +11,9 @@ ARG APP_VERSION=dev
 ENV APP_VERSION=$APP_VERSION
 COPY --from=deps /app/node_modules ./node_modules
 COPY src ./src
+# Le volume de traces est cree avec le proprietaire du dossier de l'image :
+# sans ce chown, il appartient a root et le worker (USER node) ne peut pas ecrire.
+RUN mkdir -p /data && chown node:node /data
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=40s --retries=3 \
