@@ -1,0 +1,40 @@
+# ===========================================================================
+# Point d'entree HTTP : FOURNI, fonctionnel, a ne pas modifier.
+#
+#   docker network create --driver overlay --attachable edge_public
+#   docker stack deploy -c swarm/stack.edge.yml edge
+#
+# Un seul port ouvert sur tout le cluster. Chaque service declare son routage
+# dans SES labels : ajouter un service ne demande aucune modification ici.
+# C'est ce qui rend le scenario 8 (ajout d'un service en soutenance) tenable.
+# ===========================================================================
+services:
+  traefik:
+    image: traefik:v3.3
+    command:
+      - --providers.swarm=true
+      - --providers.swarm.endpoint=unix:///var/run/docker.sock
+      - --providers.swarm.exposedByDefault=false
+      - --providers.swarm.network=edge_public
+      - --providers.swarm.refreshSeconds=10
+      - --entryPoints.web.address=:80
+      - --api.dashboard=true
+      - --api.insecure=true          # TP uniquement : jamais en production
+      - --accesslog=true
+      - --metrics.prometheus=true
+    ports:
+      - { target: 80,   published: 80,   mode: ingress }
+      - { target: 8080, published: 8088, mode: ingress }   # tableau de bord
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [public]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]   # le provider lit l'API du cluster
+      update_config: { order: start-first, failure_action: rollback }
+
+networks:
+  public:
+    driver: overlay
+    attachable: true

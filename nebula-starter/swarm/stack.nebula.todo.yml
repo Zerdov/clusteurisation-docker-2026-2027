@@ -1,0 +1,15 @@
+# ===========================================================================
+# NEBULA : le livrable du projet. 12 TODO.
+#
+#   export REGISTRY=registry.local:5000 TAG=v1
+#   docker stack deploy -c swarm/stack.nebula.todo.yml --with-registry-auth nebula
+#
+# Les trois services applicatifs sont ecrits et fonctionnent : vous ne touchez
+# pas a leur code. Tout ce qui est note est ici, dans ce fichier et dans vos
+# procedures.
+#
+# Rappel du bareme : aucun point pour le nombre de services. Cinq services
+# parfaitement exploites valent mieux que huit inexploitables.
+# ===========================================================================
+
+services:

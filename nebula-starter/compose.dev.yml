@@ -1,0 +1,76 @@
+# ===========================================================================
+# Developpement LOCAL, hors Swarm. Sert a verifier que les trois services
+# parlent entre eux avant de s'occuper du cluster.
+#
+#   docker compose -f compose.dev.yml up --build
+#   curl localhost:3002/fil
+#
+# Ce fichier N'EST PAS le livrable. Le livrable est swarm/stack.nebula.todo.yml.
+# ===========================================================================
+name: nebula-dev
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: nebula
+      POSTGRES_USER: nebula
+      POSTGRES_PASSWORD: nebula
+    volumes:
+      # Postgres 18+ : la racine, pas /data.
+      - db_data:/var/lib/postgresql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nebula -d nebula"]
+      interval: 5s
+      retries: 10
+
+  cache:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+  bus:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: nebula
+      RABBITMQ_DEFAULT_PASS: nebula
+    ports:
+      - "15672:15672"   # interface de gestion, tres utile en TP
+
+  comptes:
+    build: ./services/comptes
+    environment:
+      PGHOST: db
+      POSTGRES_DB: nebula
+      POSTGRES_USER: nebula
+      POSTGRES_PASSWORD: nebula
+    depends_on:
+      db: { condition: service_healthy }
+    ports: ["3001:3000"]
+
+  publications:
+    build: ./services/publications
+    environment:
+      PGHOST: db
+      POSTGRES_DB: nebula
+      POSTGRES_USER: nebula
+      POSTGRES_PASSWORD: nebula
+      COMPTES_URL: http://comptes:3000
+      REDIS_URL: redis://cache:6379
+      AMQP_URL: amqp://nebula:nebula@bus:5672
+    depends_on:
+      db: { condition: service_healthy }
+    ports: ["3002:3000"]
+
+  worker-medias:
+    build: ./services/worker-medias
+    environment:
+      AMQP_URL: amqp://nebula:nebula@bus:5672
+      SORTIE_DIR: /data
+    volumes:
+      - traces:/data
+    ports: ["3003:3000"]
+
+volumes:
+  db_data:
+  traces:
