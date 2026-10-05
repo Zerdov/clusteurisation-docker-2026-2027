@@ -10,7 +10,9 @@
 # ===========================================================================
 services:
   traefik:
-    image: traefik:v3.3
+    # v3.3 : son provider Swarm interroge l'API Docker en version 1.24, refusee
+    # par Docker Engine 29 (minimum 1.40) : 404 sur toutes les routes.
+    image: traefik:v3.7.13
     command:
       - --providers.swarm=true
       - --providers.swarm.endpoint=unix:///var/run/docker.sock
@@ -18,13 +20,20 @@ services:
       - --providers.swarm.network=edge_public
       - --providers.swarm.refreshSeconds=10
       - --entryPoints.web.address=:80
+      # Tableau de bord : entrypoint dedie, PAS de --api.insecure. Il est protege
+      # par basicauth (label ci-dessous) et publie sur le manager seulement.
+      - --entryPoints.dash.address=:8080
+      # L'entrypoint par defaut de Traefik s'appelle "traefik" et ecoute sur 8080 :
+      # on le deplace hors du port publie, sinon le demarrage echoue (address in use).
+      - --entryPoints.traefik.address=:9000
       - --api.dashboard=true
-      - --api.insecure=true          # TP uniquement : jamais en production
       - --accesslog=true
       - --metrics.prometheus=true
     ports:
       - { target: 80,   published: 80,   mode: ingress }
-      - { target: 8080, published: 8088, mode: ingress }   # tableau de bord
+      # mode host : le port n'est ouvert que sur le manager (pas de routing mesh).
+      # A restreindre au poste d'admin par pare-feu (ufw) sur le manager.
+      - { target: 8080, published: 8088, mode: host }
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks: [public]
@@ -32,7 +41,21 @@ services:
       replicas: 1
       placement:
         constraints: [node.role == manager]   # le provider lit l'API du cluster
-      update_config: { order: start-first, failure_action: rollback }
+      # stop-first : le port 8088 passe en mode host, il ne peut pas etre tenu
+      # par deux taches a la fois. Coupure courte de l'edge a chaque mise a jour.
+      update_config: { order: stop-first, failure_action: rollback }
+      labels:
+        - traefik.enable=true
+        # Le provider Swarm veut un port pour ce conteneur, meme s'il ne sert a rien
+        # (le routeur ci-dessous pointe sur api@internal).
+        - traefik.http.services.edge-self.loadbalancer.server.port=8080
+        - traefik.http.routers.dashboard.rule=PathPrefix(`/`)
+        - traefik.http.routers.dashboard.entrypoints=dash
+        - traefik.http.routers.dashboard.service=api@internal
+        - traefik.http.routers.dashboard.middlewares=dash-auth
+        # Hash htpasswd fourni au deploiement, JAMAIS dans ce fichier :
+        #   export DASHBOARD_USERS="$(docker run --rm httpd:2 htpasswd -nbB admin 'MOTDEPASSE')"
+        - traefik.http.middlewares.dash-auth.basicauth.users=${DASHBOARD_USERS:?definir DASHBOARD_USERS}
 
 networks:
   public:
