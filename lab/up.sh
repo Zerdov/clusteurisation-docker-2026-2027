@@ -25,12 +25,19 @@ attendre() { # attendre "<commande>" <secondes>
   return 1
 }
 
-echo "== 1. noeuds du lab (daemons Docker-in-Docker + registry)"
+echo "== 1. noeuds du lab (daemons Docker-in-Docker + registry authentifie)"
+bash scripts/registry-auth.sh
 docker compose -f lab/compose.dind.yml up -d >/dev/null
 for c in "$MANAGER" "$W1" "$W2"; do
   attendre "docker exec $c docker info" 120 || { echo "!! daemon $c indisponible"; exit 1; }
 done
-echo "   pret"
+REG_USER=$(cat secrets/registry_user)
+REG_PW_FILE=secrets/registry_password
+# Connexion de l'hote (push) et du manager (--with-registry-auth transmet ces identifiants aux workers).
+attendre "docker exec $MANAGER docker info" 60 >/dev/null
+docker login "$REG_HOTE" -u "$REG_USER" --password-stdin < "$REG_PW_FILE" >/dev/null
+docker exec -i "$MANAGER" docker login "$REG_NOEUDS" -u "$REG_USER" --password-stdin < "$REG_PW_FILE" >/dev/null
+echo "   pret, registry connecte"
 
 echo "== 2. Swarm"
 ETAT=$(dk info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null || echo absent)

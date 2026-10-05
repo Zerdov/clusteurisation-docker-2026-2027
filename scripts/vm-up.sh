@@ -31,11 +31,18 @@ DW1="docker -H ssh://$SSH_USER@$W1_IP"
 export MSYS_NO_PATHCONV=1
 
 echo "== 1. acces aux VM et au registry"
+bash scripts/registry-auth.sh
+REG_USER=$(cat secrets/registry_user)
+# Un registry authentifie repond 401 sur /v2/ : c'est la preuve qu'il est joignable.
+REG_OK='c=$(curl -s -o /dev/null -w "%{http_code}" -m 5 http://'"$REGISTRY"'/v2/); [ "$c" = 200 ] || [ "$c" = 401 ]'
 for ip in "$MANAGER_IP" "$W1_IP" "$W2_IP"; do
   ssh -o BatchMode=yes -o ConnectTimeout=5 "$SSH_USER@$ip" true || { echo "!! SSH impossible vers $ip"; exit 1; }
-  ssh -o BatchMode=yes "$SSH_USER@$ip" "curl -fsS -m 5 http://$REGISTRY/v2/ >/dev/null" \
+  ssh -o BatchMode=yes "$SSH_USER@$ip" "$REG_OK" \
     || { echo "!! $ip ne voit pas le registry $REGISTRY (insecure-registries ? pare-feu ?)"; exit 1; }
 done
+# Connexion du poste : pour le build/push, et pour --with-registry-auth (transmis aux noeuds).
+docker login "$REGISTRY" -u "$REG_USER" --password-stdin < secrets/registry_password >/dev/null \
+  || { echo "!! login registry refuse"; exit 1; }
 echo "   ok"
 
 echo "== 2. Swarm (jamais reinitialise ici)"

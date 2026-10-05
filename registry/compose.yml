@@ -1,0 +1,31 @@
+# ===========================================================================
+# Registry Docker PRIVE, sur la 4e VM (hors cluster Swarm, cahier section 8).
+#
+# Prerequis : le fichier htpasswd a cote de ce fichier (genere par
+#   scripts/registry-auth.sh, puis copie sur la VM : scp secrets/registry_htpasswd <vm>:registry/htpasswd)
+#
+#   docker compose -f registry/compose.yml up -d
+#
+# Authentification obligatoire : pas de push ni de pull anonymes.
+# HTTP uniquement (TP) : les identifiants circulent en clair sur le reseau.
+# Ajouter TLS est le bonus "chiffrement" du cahier.
+# ===========================================================================
+name: nebula-registry
+
+services:
+  registry:
+    image: registry:3
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: nebula-registry
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+    volumes:
+      - ./htpasswd:/auth/htpasswd:ro
+      - registry_data:/var/lib/registry
+
+volumes:
+  registry_data:

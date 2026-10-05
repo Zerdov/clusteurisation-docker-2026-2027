@@ -28,7 +28,13 @@ services:
   registry:
     image: registry:3
     restart: unless-stopped
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_AUTH: htpasswd                       # pas de push ni de pull anonymes
+      REGISTRY_AUTH_HTPASSWD_REALM: nebula-registry
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
     volumes:
+      - ../secrets/registry_htpasswd:/auth/htpasswd:ro
       - registry_data:/var/lib/registry
     networks:
       labnet: { ipv4_address: 10.10.0.10 }
