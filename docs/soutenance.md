@@ -35,6 +35,14 @@ Montrer aussi la version des moteurs : `docker node ls` affiche la colonne `ENGI
 
 ## 2. Arrêt puis redémarrage complet
 
+Avant d'arrêter, créer un compte témoin et noter son `id` dans la réponse :
+
+```bash
+curl -s -m 5 -X POST http://localhost:18080/api/comptes -H 'content-type: application/json' -d '{"pseudo":"soutenance-'"$RANDOM"'"}'; echo
+```
+
+Attendu : `{"id":...,"pseudo":"soutenance-...","cree_le":...}`. C'est cet `id` qui sert à la relecture après redémarrage, plus bas.
+
 Arrêter les VM, dans l'ordre inverse du démarrage : workers d'abord, manager ensuite.
 
 ```bash
@@ -85,24 +93,26 @@ Attendu pour la base, le bus et le cache : `[]`, aucun port publié. Pour l'edge
 - le **8088**, pour le dashboard Traefik (protégé par mot de passe, documenté dans `CHOIX.md`) ;
 - le **5000**, pour le registry, nécessaire aux démons des workers (documenté dans `CHOIX.md`).
 
-Restriction par pare-feu (ufw) de ces ports au sous-réseau `10.96.238.0/24` : à confirmer avant la soutenance.
-
 ## 5. Placement cohérent
 
 La base doit être sur le worker étiqueté `tier=data`.
 
 ```bash
-ssh manager@10.96.238.1 'docker service ps nebula_db --format "{{.Name}} {{.Node}} {{.CurrentState}}"'
+ssh manager@10.96.238.1 'docker service ps nebula_db --filter desired-state=running --format "{{.Name}} {{.Node}} {{.CurrentState}}"'
+ssh manager@10.96.238.1 'docker service inspect nebula_db --format "{{json .Spec.TaskTemplate.Placement}}"'
 ssh manager@10.96.238.1 'docker node inspect clusteurisation-docker-worker1 --format "{{.Spec.Labels}}"'
-grep -n "constraints" swarm/stack.nebula.todo.yml
+awk '/^  db:/,/^  cache:/' swarm/stack.nebula.todo.yml | grep constraints
 ```
 
 Attendu :
-- la base tourne sur `clusteurisation-docker-worker1` ;
+- la base tourne sur `clusteurisation-docker-worker1` (`Running`) ;
+- Swarm affiche la contrainte `{"Constraints":["node.labels.tier == data"]}` pour `nebula_db`, c'est-à-dire la configuration déployée, pas seulement le fichier ;
 - ce nœud porte `tier=data` ;
-- la contrainte `node.labels.tier == data` est visible dans le fichier de stack.
+- le bloc `db` du fichier de stack contient la même contrainte (une seule ligne `constraints`).
 
-Montrer aussi les services sans état : `nebula_comptes` est réparti entre les nœuds `tier=app` et le manager.
+Montrer aussi les services sans état : `nebula_comptes` tourne sur les nœuds qui ne sont pas `tier=data` (contrainte `node.labels.tier != data`), donc sur worker2 et, si Swarm le place là, sur le manager.
+
+**Point à annoncer franchement** : la contrainte fixe la base sur worker1, mais elle ne déplace pas les données. Le volume `db_data` reste local à worker1. Si ce nœud tombe, Swarm peut relancer la base ailleurs, mais sans son volume, donc sans les données. La réponse est la sauvegarde du scénario 9, pas la contrainte seule.
 
 ## 6. Montée en charge d'un service sans état
 
