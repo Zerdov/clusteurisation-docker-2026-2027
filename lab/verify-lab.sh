@@ -2,8 +2,7 @@
 # Verifie l'etat du lab Swarm a trois noeuds. LECTURE SEULE : relancable a volonte.
 # Code de sortie = nombre de controles en echec (0 = tout est bon).
 #
-#   bash scripts/verify-lab.sh
-#   API=http://nebula.local DASH=http://nebula.local:8088 bash scripts/verify-lab.sh   # sur les VM
+#   bash lab/verify-lab.sh
 set -uo pipefail
 cd "$(dirname "$0")/.."
 export MSYS_NO_PATHCONV=1
@@ -63,7 +62,7 @@ dash_accepte_avec_mot_de_passe() {
 
 # --- hygiene du depot
 secrets_hors_git() { git check-ignore -q secrets/registry_password && git check-ignore -q secrets/dashboard_password.txt; }
-pas_de_latest() { ! grep -rqE ':latest([^a-zA-Z0-9_-]|$)' swarm/ lab/; }
+pas_de_latest() { ! grep -rqE ':latest([^a-zA-Z0-9_-]|$)' swarm/; }   # les images sont declarees dans swarm/
 
 echo "== noeuds du lab"
 controle "3 conteneurs de noeuds en marche" conteneurs_up

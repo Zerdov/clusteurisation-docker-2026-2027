@@ -7,7 +7,7 @@
 # worker2 est relance dans tous les cas (fin normale, erreur ou Ctrl+C).
 # Relancable : si worker2 tourne deja, les etapes sont sans effet.
 #
-#   bash scripts/demo-panne.sh
+#   bash lab/demo-panne.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export MSYS_NO_PATHCONV=1

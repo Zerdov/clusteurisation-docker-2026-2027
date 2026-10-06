@@ -31,9 +31,9 @@ clean: ## Retire la stack
 lab-up: ## Monte le lab Swarm local a trois noeuds (idempotent)
 	bash lab/up.sh
 lab-verify: ## Verifie le lab (lecture seule, code de sortie = echecs)
-	bash scripts/verify-lab.sh
+	bash lab/verify-lab.sh
 lab-demo: ## Demo : panne d'un worker, reprogrammation, retour
-	bash scripts/demo-panne.sh
+	bash lab/demo-panne.sh
 lab-down: ## Arrete le lab, garde les volumes
 	bash lab/down.sh
 lab-reset: ## DESTRUCTIF : supprime le lab et ses volumes (demande confirmation)
