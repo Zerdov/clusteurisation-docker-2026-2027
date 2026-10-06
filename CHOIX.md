@@ -26,7 +26,7 @@
 
 ## Exposition
 
-- Un seul port publié sur le cluster : l'edge.
+- Un seul port publié sur le cluster : l'edge. **Écart assumé** : le tableau de bord Traefik est aussi publié sur le port 8088 (mode `host`, manager uniquement). Il est protégé par basicauth. Le cahier demande un accès « restreint » : la restriction par pare-feu (ufw sur le manager, accès limité au poste d'admin) reste à appliquer sur les VM.
 - Les services déclarent leur routage dans leurs propres labels. Ajouter un service ne demande aucune modification de l'edge.
 
 ## Secrets et configuration
