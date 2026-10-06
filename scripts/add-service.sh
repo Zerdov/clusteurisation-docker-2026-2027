@@ -13,8 +13,7 @@ echo "== ajout du service statut (tag $TAG)"
 build_push "$REG_HOTE/nebula-statut:$TAG" services/statut --build-arg "APP_VERSION=$TAG"
 verdict "image nebula-statut:$TAG construite et poussee" $?
 
-sortie=$(docker exec -e REGISTRY="$REG_NOEUDS" -e TAG="$TAG" "$MANAGER" \
-  docker stack deploy -c /repo/swarm/stack.statut.yml --with-registry-auth statut 2>&1)
+sortie=$(REGISTRY="$REG_NOEUDS" TAG="$TAG" stack_deploy statut swarm/stack.statut.yml 2>&1)
 verdict "stack statut deployee" $? "$sortie"
 
 attendre "dk service ls --format '{{.Name}} {{.Replicas}}' | grep -qx 'statut_statut 2/2'" 180

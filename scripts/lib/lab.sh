@@ -48,6 +48,23 @@ attendre() {
 
 conteneur_db() { dkw1 ps -q --filter name=nebula_db | head -1; }
 
+# stack_deploy <nom> <fichier> : deploie une stack avec --with-registry-auth.
+# REGISTRY et TAG sont lus dans l'environnement (ex. REGISTRY=... TAG=... stack_deploy ...).
+# En VM, le deploiement se fait SUR le manager, car c'est lui qui a les identifiants du registry.
+# Le fichier est copie dans ~/nebula avant (le manager ne l'a pas forcement).
+stack_deploy() {
+  local nom=$1 fichier=$2
+  if [ "$TARGET" = vm ]; then
+    ssh -o BatchMode=yes "$SSH_USER@$MANAGER_IP" "mkdir -p ~/nebula/$(dirname "$fichier")" \
+      && scp -q -o BatchMode=yes "$fichier" "$SSH_USER@$MANAGER_IP:~/nebula/$fichier" \
+      && ssh -o BatchMode=yes "$SSH_USER@$MANAGER_IP" \
+           "cd ~/nebula && REGISTRY='$REGISTRY' TAG='$TAG' docker stack deploy -c $fichier --with-registry-auth $nom"
+  else
+    docker exec -e REGISTRY="${REGISTRY:-}" -e TAG="${TAG:-}" "$MANAGER" \
+      docker stack deploy -c "/repo/$fichier" --with-registry-auth "$nom"
+  fi
+}
+
 # build_push <image:tag> <contexte> [args de build...] : construit puis pousse dans le registry.
 # En VM, le build part vers le manager ; le push doit aussi partir du manager (le poste ne voit pas le registry).
 build_push() {
