@@ -38,7 +38,8 @@
 ## Versions
 
 - Images taguées par version et empreinte de commit, jamais `latest`.
-- Le registry tourne hors du cluster, sur une machine à part.
+- Le registry tourne **dans** le cluster : service Swarm (`swarm/stack.registry.yml`) placé sur le manager, volume local au manager, authentification htpasswd (secret Swarm). Décision revue : une quatrième VM dédiée n'était pas disponible dans le cadre du TP.
+- **Écart assumé** : le port 5000 du registry est publié en mode `host`, car les démons Docker des workers doivent le joindre directement. Il doit être restreint par pare-feu au sous-réseau `10.96.238.0/24` (à appliquer sur les VM).
 
 ## Limites
 
