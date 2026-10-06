@@ -1,0 +1,38 @@
+# Huitieme service, ajoute sans modifier l'edge ni la stack Nebula.
+#   docker stack deploy -c swarm/stack.statut.yml statut
+# Le routage est declare par SES labels : Traefik le decouvre tout seul.
+services:
+  statut:
+    image: ${REGISTRY}/nebula-statut:${TAG}
+    networks: [public]
+    deploy:
+      replicas: 2
+      placement:
+        constraints: [node.labels.tier != data]
+        preferences:
+          - spread: node.id
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        order: start-first
+      restart_policy: { condition: on-failure, delay: 5s }
+      resources:
+        limits: { memory: 64M }
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.statut.rule=PathPrefix(`/api/statut`)
+        - traefik.http.routers.statut.entrypoints=web
+        - traefik.http.routers.statut.middlewares=strip-statut
+        - traefik.http.middlewares.strip-statut.stripprefix.prefixes=/api
+        - traefik.http.services.statut.loadbalancer.server.port=3000
+
+networks:
+  public:
+    external: true
+    name: edge_public        # cree par swarm/stack.edge.yml

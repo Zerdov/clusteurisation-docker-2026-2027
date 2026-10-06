@@ -1,2 +1,3 @@
 # Secrets locaux : jamais dans le depot ni dans l'historique Git (cahier des charges, section 4).
 secrets/
+backups/

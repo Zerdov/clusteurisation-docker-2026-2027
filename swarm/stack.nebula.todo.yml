@@ -81,12 +81,17 @@ services:
 
   comptes:
     image: ${REGISTRY}/nebula-comptes:${TAG}
+    # Arret progressif : SIGTERM est transmis a Node, puis le conteneur reste vivant 3 s
+    # pour que les requetes en cours et les sondes de Traefik finissent proprement.
+    command:
+      - sh
+      - -c
+      - trap 'kill -TERM $$CHILD; sleep 3; exit 0' TERM; node src/index.js & CHILD=$$!; wait $$CHILD
     environment:
       PGHOST: db
       POSTGRES_DB: nebula
       POSTGRES_USER: nebula
       POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      APP_VERSION: ${TAG}
     secrets: [pg_password]
     networks: [public, internal]
     deploy:
@@ -113,13 +118,23 @@ services:
         - traefik.enable=true
         - traefik.http.routers.comptes.rule=PathPrefix(`/api/comptes`)
         - traefik.http.routers.comptes.entrypoints=web
-        - traefik.http.routers.comptes.middlewares=strip-comptes
+        - traefik.http.routers.comptes.middlewares=strip-comptes,retry-comptes
+        # Retry : une instance qui s'arrete ou demarre refuse la connexion ; Traefik essaie
+        # une autre instance. Les POST ne sont pas rejoues (non idempotents, choix par defaut).
+        - traefik.http.middlewares.retry-comptes.retry.attempts=3
+        - traefik.http.middlewares.retry-comptes.retry.initialinterval=100ms
         - traefik.http.middlewares.strip-comptes.stripprefix.prefixes=/api
         - traefik.http.services.comptes.loadbalancer.server.port=3000
+        # Healthcheck actif : Traefik sonde /health et retire une instance qui ne repond plus,
+        # sans attendre son rafraichissement (refreshSeconds=10). Sans cela, il route vers des
+        # taches arretees dont l'IP ne repond plus (timeout, pas de reponse).
+        - traefik.http.services.comptes.loadbalancer.healthcheck.path=/health
+        - traefik.http.services.comptes.loadbalancer.healthcheck.interval=2s
+        - traefik.http.services.comptes.loadbalancer.healthcheck.timeout=1s
         # Route de sante exposee par l'edge : /api/health -> /health du service.
         - traefik.http.routers.sante.rule=Path(`/api/health`)
         - traefik.http.routers.sante.entrypoints=web
-        - traefik.http.routers.sante.middlewares=strip-comptes
+        - traefik.http.routers.sante.middlewares=strip-comptes,retry-comptes
         - traefik.http.routers.sante.service=comptes
 
   publications:
@@ -136,7 +151,6 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
       COMPTES_URL: http://comptes:3000
       REDIS_URL: redis://cache:6379
-      APP_VERSION: ${TAG}
     secrets: [pg_password, bus_password]
     networks: [public, internal]
     deploy:
@@ -163,9 +177,19 @@ services:
         - traefik.enable=true
         - traefik.http.routers.publications.rule=PathPrefix(`/api/publications`) || PathPrefix(`/api/fil`)
         - traefik.http.routers.publications.entrypoints=web
-        - traefik.http.routers.publications.middlewares=strip-publications
+        - traefik.http.routers.publications.middlewares=strip-publications,retry-publications
+        # Retry : une instance qui s'arrete ou demarre refuse la connexion ; Traefik essaie
+        # une autre instance. Les POST ne sont pas rejoues (non idempotents, choix par defaut).
+        - traefik.http.middlewares.retry-publications.retry.attempts=3
+        - traefik.http.middlewares.retry-publications.retry.initialinterval=100ms
         - traefik.http.middlewares.strip-publications.stripprefix.prefixes=/api
         - traefik.http.services.publications.loadbalancer.server.port=3000
+        # Healthcheck actif : Traefik sonde /health et retire une instance qui ne repond plus,
+        # sans attendre son rafraichissement (refreshSeconds=10). Sans cela, il route vers des
+        # taches arretees dont l'IP ne repond plus (timeout, pas de reponse).
+        - traefik.http.services.publications.loadbalancer.healthcheck.path=/health
+        - traefik.http.services.publications.loadbalancer.healthcheck.interval=2s
+        - traefik.http.services.publications.loadbalancer.healthcheck.timeout=1s
 
   worker-medias:
     image: ${REGISTRY}/nebula-worker-medias:${TAG}
@@ -175,7 +199,6 @@ services:
       - export AMQP_URL="amqp://nebula:$$(cat /run/secrets/bus_password)@bus:5672" && exec node src/index.js
     environment:
       SORTIE_DIR: /data
-      APP_VERSION: ${TAG}
     secrets: [bus_password]
     # Volume local au noeud : les traces ne suivent pas le worker d'un noeud a l'autre.
     # Acceptable : le worker n'ecrit qu'une trace de demonstration (cahier, annexe C).
