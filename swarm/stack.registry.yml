@@ -1,0 +1,37 @@
+# Registry Docker, en service Swarm sur le manager (decision : registry dans le cluster).
+#
+#   docker secret create registry_htpasswd secrets/registry_htpasswd
+#   docker stack deploy -c swarm/stack.registry.yml registry
+#
+# Le port 5000 est publie en mode host : les demons Docker des workers doivent
+# le joindre directement (ils ne voient pas le VIP overlay). C'est un ecart a
+# l'exigence "un seul port publie" : restreindre 5000 au sous-reseau 10.96.238.0/24.
+# Authentification htpasswd : le fichier est un secret Swarm, jamais dans le depot.
+services:
+  registry:
+    image: registry:3
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: nebula-registry
+      REGISTRY_AUTH_HTPASSWD_PATH: /run/secrets/registry_htpasswd
+    secrets: [registry_htpasswd]
+    volumes:
+      - registry_data:/var/lib/registry
+    ports:
+      - { target: 5000, published: 5000, mode: host }
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]   # le volume est local au manager
+      update_config: { order: stop-first, failure_action: rollback }
+      restart_policy: { condition: any, delay: 5s }
+      resources:
+        limits: { memory: 256M }
+
+volumes:
+  registry_data:
+
+secrets:
+  registry_htpasswd:
+    external: true
