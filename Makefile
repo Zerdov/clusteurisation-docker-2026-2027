@@ -39,6 +39,13 @@ lab-down: ## Arrete le lab, garde les volumes
 lab-reset: ## DESTRUCTIF : supprime le lab et ses volumes (demande confirmation)
 	bash lab/reset.sh
 
+.PHONY: vm-up vm-tunnel
+
+vm-up: ## Deploie Nebula sur les VM (SSH_USER=manager, rebond dans ~/.ssh/config)
+	SSH_USER=$${SSH_USER:-manager} bash scripts/vm-up.sh
+vm-tunnel: ## Ouvre un tunnel SSH : API sur localhost:8080, dashboard sur localhost:8088
+	ssh -fN -L 8080:localhost:80 -L 8088:localhost:8088 $${SSH_USER:-manager}@10.96.238.1
+
 .PHONY: scale-out rolling-update rollback data-restore-test add-service backup-db restore-db
 
 scale-out: ## montee en charge de nebula_comptes
