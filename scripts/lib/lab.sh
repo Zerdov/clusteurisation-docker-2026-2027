@@ -4,17 +4,38 @@
 # N'execute rien a l'import : uniquement des variables et des fonctions.
 export MSYS_NO_PATHCONV=1
 
+# TARGET=lab (defaut) : les noeuds sont des conteneurs Docker-in-Docker.
+# TARGET=vm           : les noeuds sont les VM, joignables en SSH (rebond dans ~/.ssh/config).
+TARGET=${TARGET:-lab}
+
 MANAGER=nebula-lab-manager-1
 W1=nebula-lab-worker1-1
 W2=nebula-lab-worker2-1
-API=${API:-http://localhost:8080}
-DASH=${DASH:-http://localhost:8088}
-REG_HOTE=localhost:5000      # vu depuis l'hote : build et push
-REG_NOEUDS=registry:5000     # vu depuis les noeuds : pull
+API=${API:-http://localhost:8080}      # en VM : tunnel SSH vers le port 80 du manager
+DASH=${DASH:-http://localhost:8088}    # en VM : tunnel SSH vers le port 8088 du manager
+
+if [ "$TARGET" = vm ]; then
+  SSH_USER=${SSH_USER:-manager}
+  MANAGER_IP=${MANAGER_IP:-10.96.238.1}
+  W1_IP=${W1_IP:-10.96.238.2}
+  W2_IP=${W2_IP:-10.96.238.3}
+  REG_HOTE=$MANAGER_IP:5000    # vu depuis l'hote : le registry est sur le manager
+  REG_NOEUDS=$MANAGER_IP:5000  # vu depuis les noeuds : le meme point d'entree
+else
+  REG_HOTE=localhost:5000      # vu depuis l'hote : build et push
+  REG_NOEUDS=registry:5000     # vu depuis les noeuds : pull
+fi
 
 ECHECS=0
 
-dk() { docker exec "$MANAGER" docker "$@"; }
+# dk <args...> : client docker du manager ; dkw1 <args...> : client docker du worker1.
+if [ "$TARGET" = vm ]; then
+  dk()   { docker -H "ssh://$SSH_USER@$MANAGER_IP" "$@"; }
+  dkw1() { docker -H "ssh://$SSH_USER@$W1_IP" "$@"; }
+else
+  dk()   { docker exec "$MANAGER" docker "$@"; }
+  dkw1() { docker exec -i "$W1" docker "$@"; }
+fi
 
 # attendre "<commande>" <secondes> : reussit des que la commande reussit
 attendre() {
