@@ -25,3 +25,16 @@ smoke: ## Verifie la chaine complete
 	./scripts/smoke.sh $(HOST)
 clean: ## Retire la stack
 	docker stack rm nebula
+
+.PHONY: lab-up lab-verify lab-demo lab-down lab-reset
+
+lab-up: ## Monte le lab Swarm local a trois noeuds (idempotent)
+	bash lab/up.sh
+lab-verify: ## Verifie le lab (lecture seule, code de sortie = echecs)
+	bash scripts/verify-lab.sh
+lab-demo: ## Demo : panne d'un worker, reprogrammation, retour
+	bash scripts/demo-panne.sh
+lab-down: ## Arrete le lab, garde les volumes
+	bash lab/down.sh
+lab-reset: ## DESTRUCTIF : supprime le lab et ses volumes (demande confirmation)
+	bash lab/reset.sh

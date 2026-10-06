@@ -111,7 +111,11 @@ attendre "docker exec $MANAGER docker service ls --format '{{.Replicas}}' | awk 
   || echo "   !! services pas tous prets : docker exec $MANAGER docker service ls"
 dk service ls --format '   {{.Name}} {{.Replicas}}'
 
-echo "== 9. test"
-curl -fsS -m 10 -X POST http://localhost:8080/api/comptes \
-  -H 'content-type: application/json' -d "{\"pseudo\":\"lab-$RANDOM\"}" \
-  && echo || echo "!! echec : verifier 'docker exec $MANAGER docker service ps nebula_comptes'"
+echo "== 9. test (Traefik rafraichit ses routes toutes les 10 s : on attend la route)"
+test_creation() { curl -fsS -m 5 -X POST http://localhost:8080/api/comptes \
+  -H 'content-type: application/json' -d "{\"pseudo\":\"lab-$RANDOM\"}"; }
+if attendre test_creation 60 >/dev/null; then
+  test_creation && echo
+else
+  echo "!! echec : verifier 'docker exec $MANAGER docker service ps nebula_comptes'"
+fi

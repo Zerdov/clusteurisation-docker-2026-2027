@@ -116,6 +116,11 @@ services:
         - traefik.http.routers.comptes.middlewares=strip-comptes
         - traefik.http.middlewares.strip-comptes.stripprefix.prefixes=/api
         - traefik.http.services.comptes.loadbalancer.server.port=3000
+        # Route de sante exposee par l'edge : /api/health -> /health du service.
+        - traefik.http.routers.sante.rule=Path(`/api/health`)
+        - traefik.http.routers.sante.entrypoints=web
+        - traefik.http.routers.sante.middlewares=strip-comptes
+        - traefik.http.routers.sante.service=comptes
 
   publications:
     image: ${REGISTRY}/nebula-publications:${TAG}
