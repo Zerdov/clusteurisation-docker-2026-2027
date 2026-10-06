@@ -46,7 +46,7 @@ attendre() {
   return 1
 }
 
-conteneur_db() { docker exec "$W1" docker ps -q --filter name=nebula_db | head -1; }
+conteneur_db() { dkw1 ps -q --filter name=nebula_db | head -1; }
 
 api_ok() { curl -fsS -m 5 "$API/api/health" >/dev/null 2>&1; }
 

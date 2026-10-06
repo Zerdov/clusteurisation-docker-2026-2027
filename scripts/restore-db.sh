@@ -13,6 +13,6 @@ db=$(conteneur_db)
 [ -n "$db" ] || { echo "!! base introuvable sur $W1 : le lab est-il monte ?"; exit 1; }
 
 # ON_ERROR_STOP : une erreur stoppe la restauration au lieu de laisser une base a moitie restauree
-gunzip -c "$FICHIER" | docker exec -i "$W1" docker exec -i "$db" \
+gunzip -c "$FICHIER" | dkw1 exec -i "$db" \
   psql -q -U nebula -d nebula -v ON_ERROR_STOP=1
 echo "restauration appliquee depuis $FICHIER"

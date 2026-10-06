@@ -7,7 +7,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 source scripts/lib/lab.sh
 
-sql() { docker exec "$W1" docker exec "$(conteneur_db)" psql -U nebula -d nebula -tAc "$1"; }
+sql() { dkw1 exec "$(conteneur_db)" psql -U nebula -d nebula -tAc "$1"; }
 lire() { curl -s -o /dev/null -w '%{http_code}' -m 5 "$API/api/comptes/$1"; }
 est_present() { [ "$(lire "$1")" = 200 ]; }
 

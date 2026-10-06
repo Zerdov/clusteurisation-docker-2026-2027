@@ -13,5 +13,5 @@ db=$(conteneur_db)
 [ -n "$db" ] || { echo "!! base introuvable sur $W1 : le lab est-il monte ?"; exit 1; }
 
 # --clean --if-exists : la restauration remplace les tables existantes au lieu de echouer
-docker exec "$W1" docker exec "$db" pg_dump -U nebula -d nebula --clean --if-exists | gzip > "$FICHIER"
+dkw1 exec "$db" pg_dump -U nebula -d nebula --clean --if-exists | gzip > "$FICHIER"
 echo "sauvegarde ecrite : $FICHIER ($(du -h "$FICHIER" | cut -f1))"
