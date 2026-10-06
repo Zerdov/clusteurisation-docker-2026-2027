@@ -189,13 +189,20 @@ Vérification : `docker node ls` doit afficher trois nœuds `Ready`, un `Leader`
 
 ## 8. Registry
 
-**Statut : à valider.** Le registry tourne comme service Swarm sur le manager, sur le port 5000 publié (`mode: host`), car les démons Docker des workers doivent pouvoir le joindre par HTTP. Ce port publié est un écart à l'exigence « un seul port publié » : il doit être restreint par pare-feu au sous-réseau `10.96.238.0/24`.
+Le registry tourne comme **service Swarm sur le manager** (`swarm/stack.registry.yml`), avec un volume local au manager et une authentification htpasswd fournie par un secret Swarm.
 
-Décisions et étapes restantes :
-- valider la publication du port 5000 et sa restriction ufw ;
-- écrire le stack `swarm/stack.registry.yml` (contrainte `node.role == manager`, volume local, identifiants htpasswd) ;
-- ajouter le déploiement du registry à `scripts/vm-up.sh`, avant le push des images ;
-- mettre à jour `CHOIX.md` (la section Versions indique aujourd'hui « registry hors du cluster »).
+Il est publié sur le port 5000 en mode `host`, car les démons Docker des workers doivent le joindre directement par HTTP. Ce port publié est un écart à l'exigence « un seul port publié » (voir `CHOIX.md`).
+
+Déploiement, fait automatiquement par `scripts/vm-up.sh` :
+
+```bash
+docker secret create registry_htpasswd secrets/registry_htpasswd
+docker stack deploy -c swarm/stack.registry.yml registry
+```
+
+Les opérations registry (login, pull, push, déploiement des stacks avec `--with-registry-auth`) se font **sur le manager**, pas depuis le poste : le poste ne voit pas le registry.
+
+Reste à faire : restreindre le port 5000 au sous-réseau `10.96.238.0/24` par pare-feu (ufw) sur les trois VM.
 
 ## 9. Points de vigilance
 
