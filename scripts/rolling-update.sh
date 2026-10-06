@@ -11,8 +11,7 @@ NOUVEAU=${NOUVEAU:-$(git rev-parse --short HEAD)-m$(date +%H%M%S)}
 echo "== nebula_comptes -> version $NOUVEAU"
 
 # 1. nouvelle image : meme code, nouvelle version (lue dans /health)
-docker build -q --build-arg "APP_VERSION=$NOUVEAU" -t "$REG_HOTE/nebula-comptes:$NOUVEAU" services/comptes >/dev/null \
-  && docker push -q "$REG_HOTE/nebula-comptes:$NOUVEAU" >/dev/null
+build_push "$REG_HOTE/nebula-comptes:$NOUVEAU" services/comptes --build-arg "APP_VERSION=$NOUVEAU"
 verdict "image $NOUVEAU construite et poussee" $?
 
 # 2. trafic continu : une ligne par requete, avec la reponse et le code HTTP

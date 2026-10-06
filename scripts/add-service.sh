@@ -10,8 +10,7 @@ source scripts/lib/lab.sh
 TAG=${TAG:-$(git rev-parse --short HEAD)}
 echo "== ajout du service statut (tag $TAG)"
 
-docker build -q --build-arg "APP_VERSION=$TAG" -t "$REG_HOTE/nebula-statut:$TAG" services/statut >/dev/null \
-  && docker push -q "$REG_HOTE/nebula-statut:$TAG" >/dev/null
+build_push "$REG_HOTE/nebula-statut:$TAG" services/statut --build-arg "APP_VERSION=$TAG"
 verdict "image nebula-statut:$TAG construite et poussee" $?
 
 sortie=$(docker exec -e REGISTRY="$REG_NOEUDS" -e TAG="$TAG" "$MANAGER" \

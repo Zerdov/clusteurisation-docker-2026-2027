@@ -48,6 +48,19 @@ attendre() {
 
 conteneur_db() { dkw1 ps -q --filter name=nebula_db | head -1; }
 
+# build_push <image:tag> <contexte> [args de build...] : construit puis pousse dans le registry.
+# En VM, le build part vers le manager ; le push doit aussi partir du manager (le poste ne voit pas le registry).
+build_push() {
+  local img=$1 ctx=$2
+  shift 2
+  if [ "$TARGET" = vm ]; then
+    dk build -q "$@" -t "$img" "$ctx" >/dev/null \
+      && ssh -o BatchMode=yes "$SSH_USER@$MANAGER_IP" "docker push -q $img" >/dev/null
+  else
+    docker build -q "$@" -t "$img" "$ctx" >/dev/null && docker push -q "$img" >/dev/null
+  fi
+}
+
 api_ok() { curl -fsS -m 5 "$API/api/health" >/dev/null 2>&1; }
 
 # hotes <n> : une ligne par reponse reussie de /api/health, avec le hostname de l'instance.

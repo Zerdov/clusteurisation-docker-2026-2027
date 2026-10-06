@@ -17,8 +17,7 @@ echo "== version defectueuse. Version en service : $ACTUELLE"
 ctx=$(mktemp -d)
 trap 'rm -rf "$ctx"' EXIT
 printf 'FROM %s\nUSER root\nRUN rm -f /app/src/index.js\nUSER node\n' "${ACTUELLE/$REG_NOEUDS/$REG_HOTE}" > "$ctx/Dockerfile"
-docker build -q -t "${CASSEE/$REG_NOEUDS/$REG_HOTE}" "$ctx" >/dev/null \
-  && docker push -q "${CASSEE/$REG_NOEUDS/$REG_HOTE}" >/dev/null
+build_push "${CASSEE/$REG_NOEUDS/$REG_HOTE}" "$ctx"
 verdict "image defectueuse construite et poussee" $?
 
 # 2. deploiement de la version defectueuse, chronometre
