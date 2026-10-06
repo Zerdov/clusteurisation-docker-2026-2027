@@ -11,8 +11,6 @@ TARGET=${TARGET:-lab}
 MANAGER=nebula-lab-manager-1
 W1=nebula-lab-worker1-1
 W2=nebula-lab-worker2-1
-API=${API:-http://localhost:8080}      # en VM : tunnel SSH vers le port 80 du manager
-DASH=${DASH:-http://localhost:8088}    # en VM : tunnel SSH vers le port 8088 du manager
 
 if [ "$TARGET" = vm ]; then
   SSH_USER=${SSH_USER:-manager}
@@ -21,9 +19,14 @@ if [ "$TARGET" = vm ]; then
   W2_IP=${W2_IP:-10.96.238.3}
   REG_HOTE=$MANAGER_IP:5000    # vu depuis l'hote : le registry est sur le manager
   REG_NOEUDS=$MANAGER_IP:5000  # vu depuis les noeuds : le meme point d'entree
+  # Tunnel SSH (make vm-tunnel) : ports locaux distincts du lab, qui occupe 8080 et 8088
+  API=${API:-http://localhost:18080}
+  DASH=${DASH:-http://localhost:18088}
 else
   REG_HOTE=localhost:5000      # vu depuis l'hote : build et push
   REG_NOEUDS=registry:5000     # vu depuis les noeuds : pull
+  API=${API:-http://localhost:8080}
+  DASH=${DASH:-http://localhost:8088}
 fi
 
 ECHECS=0

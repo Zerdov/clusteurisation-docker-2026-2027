@@ -43,8 +43,8 @@ lab-reset: ## DESTRUCTIF : supprime le lab et ses volumes (demande confirmation)
 
 vm-up: ## Deploie Nebula sur les VM (SSH_USER=manager, rebond dans ~/.ssh/config)
 	SSH_USER=$${SSH_USER:-manager} bash scripts/vm-up.sh
-vm-tunnel: ## Ouvre un tunnel SSH : API sur localhost:8080, dashboard sur localhost:8088
-	ssh -fN -L 8080:localhost:80 -L 8088:localhost:8088 $${SSH_USER:-manager}@10.96.238.1
+vm-tunnel: ## Tunnel SSH : API sur localhost:18080, dashboard sur localhost:18088
+	ssh -fN -L 18080:localhost:80 -L 18088:localhost:8088 $${SSH_USER:-manager}@10.96.238.1
 
 .PHONY: scale-out rolling-update rollback data-restore-test add-service backup-db restore-db
 
