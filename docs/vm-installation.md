@@ -1,6 +1,8 @@
 # Installation des VM Nebula
 
-Ce document décrit comment préparer les machines virtuelles du cluster (un manager, deux workers), du modèle jusqu'aux clones. Il reprend les pièges rencontrés et les solutions retenues. Il est écrit pour être suivi dans l'ordre.
+Ce document décrit comment préparer les machines virtuelles du cluster (un manager, deux workers) **sur Proxmox**, du modèle jusqu'aux clones. Il reprend les pièges rencontrés et les solutions retenues. Il est écrit pour être suivi dans l'ordre.
+
+Pour le lab local sous VirtualBox (poste personnel, 4 VM dont un registry hors Swarm, réseau à deux cartes), voir [vm-installation-virtualbox.md](vm-installation-virtualbox.md) — environnement distinct, pas interchangeable avec celui-ci.
 
 ## 1. Topologie
 
