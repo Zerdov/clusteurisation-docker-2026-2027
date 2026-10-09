@@ -4,7 +4,10 @@
 # A sourcer depuis un script de scripts/ :
 #   source "$(dirname "$0")/lib/lab.sh"
 # N'execute rien a l'import : uniquement des constantes et des fonctions.
-export MSYS_NO_PATHCONV=1
+# Pas de MSYS_NO_PATHCONV=1 ici (contrairement a l'ancien mode Docker-in-Docker, qui
+# passait des chemins internes a un conteneur type /repo/... a proteger de la conversion) :
+# rollback.sh a besoin au contraire que $ctx (repertoire temporaire local, mktemp -d)
+# soit bien traduit en chemin Windows pour que "docker build" (binaire natif) le trouve.
 
 # Topologie fixe du lab : pas des parametres, ce sont des faits sur ces 4 VM precises.
 # A editer ici si le lab change d'adressage, pas a redefinir a chaque commande.
