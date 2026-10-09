@@ -1,13 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 720" width="1000" height="720" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 720" width="1180" height="720" font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
   <title>Ensembles réseaux et services du cluster Nebula</title>
-  <desc>Diagramme d'ensembles : chaque bulle est un réseau Docker, chaque boîte un service placé dans les bulles qui le connectent. Intersection = services joignables sur les deux réseaux.</desc>
+  <desc>Diagramme d'ensembles : chaque bulle est un réseau Docker, chaque boîte un service placé dans les bulles qui le connectent. Intersection = services joignables sur les deux réseaux. Le registry vit sur une VM séparée, hors du Swarm, jointe en HTTP direct.</desc>
 
   <!-- Titre -->
   <text x="40" y="32" font-size="20" font-weight="bold" fill="#222">Nebula : ensembles réseaux et services</text>
 
-  <!-- Univers : le cluster -->
+  <!-- Fleche : marqueur -->
+  <defs>
+    <marker id="fleche" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+  </defs>
+
+  <!-- Univers : le cluster Swarm -->
   <rect x="40" y="50" width="920" height="640" rx="12" fill="#fafafa" stroke="#555" stroke-width="1.5"/>
-  <text x="60" y="78" font-size="14" font-weight="bold" fill="#333">U = cluster Swarm (3 VM)</text>
+  <text x="60" y="78" font-size="14" font-weight="bold" fill="#333">U = cluster Swarm (3 VM : manager, worker1, worker2)</text>
   <text x="330" y="78" font-size="12" fill="#555">Un service appartient à un réseau s'il le déclare dans sa clé networks.</text>
 
   <!-- Ensemble P : réseau public -->
@@ -19,10 +26,6 @@
   <circle cx="640" cy="340" r="230" fill="#9c36b5" fill-opacity="0.10" stroke="#9c36b5" stroke-width="2"/>
   <text x="640" y="150" font-size="14" font-weight="bold" fill="#9c36b5" text-anchor="middle">I · internal</text>
   <text x="640" y="166" font-size="11" fill="#9c36b5" text-anchor="middle">overlay, sans port publié</text>
-
-  <!-- Ensemble R : réseau du registry, hors P et I -->
-  <ellipse cx="840" cy="615" rx="110" ry="50" fill="none" stroke="#555" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text x="840" y="552" font-size="12" font-weight="bold" fill="#555" text-anchor="middle">R · registry_default</text>
 
   <!-- Services dans P uniquement -->
   <!-- traefik : manager -->
@@ -67,16 +70,11 @@
   <text x="740" y="437" font-size="13" font-weight="bold" fill="#222" text-anchor="middle">worker-medias</text>
   <text x="740" y="452" font-size="11" fill="#444" text-anchor="middle">2 rép. · tier≠data</text>
 
-  <!-- registry : manager, hors P et I -->
-  <rect x="760" y="592" width="160" height="46" rx="8" fill="#dbe4ff" stroke="#3b5bdb" stroke-width="1.5"/>
-  <text x="840" y="612" font-size="13" font-weight="bold" fill="#222" text-anchor="middle">registry</text>
-  <text x="840" y="627" font-size="11" fill="#444" text-anchor="middle">manager · port 5000</text>
-
   <!-- Notation ensembliste -->
   <text x="350" y="614" font-size="12" fill="#222">P = {traefik, statut, comptes, publications}</text>
   <text x="350" y="632" font-size="12" fill="#222">I = {db, bus, cache, comptes, publications, worker-medias}</text>
   <text x="350" y="650" font-size="12" fill="#222">P ∩ I = {comptes, publications}   ;   db ∉ P</text>
-  <text x="350" y="668" font-size="12" fill="#222">R = {registry}   ;   P ∩ R = I ∩ R = ∅</text>
+  <text x="350" y="668" font-size="12" fill="#222">registry ∉ U   ;   aucun service du Swarm ne partage de réseau Docker avec lui</text>
 
   <!-- Légende placement -->
   <text x="60" y="600" font-size="12" font-weight="bold" fill="#333">Placement</text>
@@ -86,4 +84,18 @@
   <text x="82" y="642" font-size="11" fill="#333">tier≠data (worker2, manager)</text>
   <rect x="60" y="650" width="14" height="14" rx="3" fill="#dbe4ff" stroke="#3b5bdb"/>
   <text x="82" y="662" font-size="11" fill="#333">manager (node.role)</text>
+
+  <!-- V : 4e VM, registry, hors du Swarm -->
+  <text x="1070" y="300" font-size="14" font-weight="bold" fill="#555" text-anchor="middle">V · 4ᵉ VM</text>
+  <text x="1070" y="316" font-size="11" fill="#555" text-anchor="middle">hors Swarm</text>
+  <rect x="990" y="330" width="160" height="150" rx="12" fill="#f1f1f1" stroke="#555" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <rect x="1005" y="380" width="130" height="46" rx="8" fill="#e9ecef" stroke="#555" stroke-width="1.5"/>
+  <text x="1070" y="400" font-size="13" font-weight="bold" fill="#222" text-anchor="middle">registry</text>
+  <text x="1070" y="415" font-size="11" fill="#444" text-anchor="middle">VM dédiée · :5000</text>
+  <text x="1070" y="455" font-size="10" fill="#666" text-anchor="middle">htpasswd · pas de</text>
+  <text x="1070" y="468" font-size="10" fill="#666" text-anchor="middle">réseau Docker partagé</text>
+
+  <!-- Connexion : HTTP direct, pas un reseau Docker -->
+  <text x="973" y="382" font-size="10" fill="#555" text-anchor="middle">push/pull</text>
+  <path d="M960,403 L985,403" fill="none" stroke="#555" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#fleche)"/>
 </svg>
