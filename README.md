@@ -39,7 +39,6 @@ cause quand quelque chose cassera en cluster.
 
 ```bash
 make dev        # local, hors Swarm
-make build      # construit et pousse les 3 images
 make edge       # deploie Traefik (fourni)
 make deploy     # deploie VOTRE stack
 make smoke      # verifie la chaine complete
