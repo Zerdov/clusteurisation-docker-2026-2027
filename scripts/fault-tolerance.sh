@@ -10,7 +10,9 @@ source scripts/lib/lab.sh
 SERVICE=${SERVICE:?definir SERVICE (nom du service a tester, ex. nebula_comptes)}
 
 # 1. une tache en cours d'execution, sur n'importe quel noeud
-ligne=$(dk service ps "$SERVICE" --filter desired-state=running --format '{{.Node}} {{.ID}}' | head -1)
+# --no-trunc : l'ID de tache doit etre complet pour correspondre au label
+# com.docker.swarm.task.id pose sur le conteneur (sinon aucune correspondance).
+ligne=$(dk service ps "$SERVICE" --no-trunc --filter desired-state=running --format '{{.Node}} {{.ID}}' | head -1)
 NOEUD=$(printf '%s\n' "$ligne" | awk '{print $1}')
 TACHE=$(printf '%s\n' "$ligne" | awk '{print $2}')
 [ -n "$NOEUD" ] && [ -n "$TACHE" ] || { echo "!! aucune tache en marche pour $SERVICE"; exit 1; }
