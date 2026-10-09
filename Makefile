@@ -26,34 +26,16 @@ smoke: ## Verifie la chaine complete
 clean: ## Retire la stack
 	docker stack rm nebula
 
-.PHONY: lab-up lab-verify lab-demo lab-down lab-reset
+.PHONY: scale-out rolling-update rollback fault-tolerance data-restore-test add-service backup-db restore-db
 
-lab-up: ## Monte le lab Swarm local a trois noeuds (idempotent)
-	bash lab/up.sh
-lab-verify: ## Verifie le lab (lecture seule, code de sortie = echecs)
-	bash lab/verify-lab.sh
-lab-demo: ## Demo : panne d'un worker, reprogrammation, retour
-	bash lab/demo-panne.sh
-lab-down: ## Arrete le lab, garde les volumes
-	bash lab/down.sh
-lab-reset: ## DESTRUCTIF : supprime le lab et ses volumes (demande confirmation)
-	bash lab/reset.sh
-
-.PHONY: vm-up vm-tunnel
-
-vm-up: ## Deploie Nebula sur les VM (SSH_USER=manager, rebond dans ~/.ssh/config)
-	SSH_USER=$${SSH_USER:-manager} bash scripts/vm-up.sh
-vm-tunnel: ## Tunnel SSH : API sur localhost:18080, dashboard sur localhost:18088
-	ssh -fN -L 18080:localhost:80 -L 18088:localhost:8088 $${SSH_USER:-manager}@10.96.238.1
-
-.PHONY: scale-out rolling-update rollback data-restore-test add-service backup-db restore-db
-
-scale-out: ## montee en charge de nebula_comptes
+scale-out: ## montee en charge : make scale-out N_CIBLE=4 REQUETES=300
 	bash scripts/scale-out.sh
-rolling-update: ## mise a jour sans interruption
+rolling-update: ## mise a jour sans interruption : make rolling-update NOUVEAU=v2
 	bash scripts/rolling-update.sh
 rollback: ## version defectueuse puis retour arriere
 	bash scripts/rollback.sh
+fault-tolerance: ## tue une replique en pleine charge : make fault-tolerance SERVICE=nebula_comptes
+	bash scripts/fault-tolerance.sh
 data-restore-test: ## persistance et restauration de la base
 	bash scripts/data-restore-test.sh
 add-service: ## ajout d'un huitieme service

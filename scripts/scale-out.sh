@@ -7,8 +7,8 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 source scripts/lib/lab.sh
 
-CIBLE=${N_CIBLE:-4}
-REQUETES=${REQUETES:-300}
+CIBLE=${N_CIBLE:?definir N_CIBLE (nombre de replicas cible, ex. 4)}
+REQUETES=${REQUETES:?definir REQUETES (nombre de requetes a envoyer, ex. 300)}
 INITIAL=$(dk service inspect nebula_comptes --format '{{.Spec.Mode.Replicated.Replicas}}')
 trap 'dk service scale nebula_comptes='"$INITIAL"' >/dev/null 2>&1' EXIT
 

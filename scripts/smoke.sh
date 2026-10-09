@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Verifie la chaine complete : comptes -> publications -> bus -> worker -> medias
-#   ./scripts/smoke.sh [hote]
+#   ./scripts/smoke.sh <hote>   (ex. 192.168.56.11, IP du manager)
 set -euo pipefail
-H=${1:-nebula.local}
+H=${1:?donner l adresse a tester, ex. 192.168.56.11}
 B="http://$H"
 ok=0
 

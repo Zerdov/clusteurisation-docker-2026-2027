@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # Mise a jour sans interruption perceptible : nebula_comptes passe a une
 # nouvelle version pendant qu'un trafic continu interroge l'API. Aucune requete ne doit echouer.
-#   bash scripts/rolling-update.sh
-#   NOUVEAU=v2 bash scripts/rolling-update.sh   # tag explicite
+#   NOUVEAU=v2 bash scripts/rolling-update.sh
 set -uo pipefail
 cd "$(dirname "$0")/.."
 source scripts/lib/lab.sh
 
-NOUVEAU=${NOUVEAU:-$(git rev-parse --short HEAD)-m$(date +%H%M%S)}
+NOUVEAU=${NOUVEAU:?definir NOUVEAU (tag de la nouvelle version, ex. $(git rev-parse --short HEAD)-m$(date +%H%M%S))}
 echo "== nebula_comptes -> version $NOUVEAU"
 
 # 1. nouvelle image : meme code, nouvelle version (lue dans /health)

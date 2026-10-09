@@ -186,11 +186,28 @@ Après clonage, sur chaque clone : hostname (`hostnamectl set-hostname ...`), IP
 
 20 Go par VM (VDI, allocation dynamique — ne consomme sur le disque hôte que ce qui est réellement utilisé). La VM `registry` a été clonée à 20 Go également (pas de redimensionnement effectué), alors qu'elle est la seule à accumuler toutes les couches d'images poussées sans garbage collection automatique. Compromis accepté : purge manuelle régulière à prévoir (`docker system prune`, GC du registry) plutôt que redimensionnement du disque.
 
-## 9. Reste à faire avant déploiement
+## 9. Déploiement effectué
 
-Le provisionnement des 4 VM est terminé ; le déploiement applicatif est reporté. Pour la prochaine session :
+Provisionnement, registry, Swarm et stack applicative sont faits et validés sur ce lab :
 
-- `registry/compose.yml` à déployer sur `cluster-swarm-registry` (htpasswd via `scripts/registry-auth.sh`, volume de données, pare-feu `ufw` restreignant le port 5000 à `192.168.56.0/24`).
-- `daemon.json` sur manager/worker1/worker2 : `insecure-registries` doit pointer vers `192.168.56.10:5000`, pas vers le manager.
-- `scripts/vm-up.sh`, `scripts/lib/lab.sh`, `scripts/add-service.sh` supposent encore un registry colocalisé sur le manager (`swarm/stack.registry.yml`, `REG_HOTE=$MANAGER_IP:5000`) — à réaligner sur la topologie à 4 VM avant toute utilisation sur ce lab.
-- Initialisation du Swarm (`docker swarm init` sur le manager, `join` des deux workers), toujours à faire.
+- `registry/compose.yml` déployé sur `cluster-swarm-registry` (htpasswd `nebula`/`nebula`, `ufw` restreint à `192.168.56.0/24`).
+- `daemon.json` sur manager/worker1/worker2 : `insecure-registries` pointe vers `192.168.56.10:5000`.
+- Swarm initialisé (manager + 2 workers `Ready`), labels `tier=data` (worker1) / `tier=app` (worker2).
+- Images construites et poussées via contexte Docker SSH vers le manager (pas de build local sur le poste — voir piège du tag `latest` ci-dessous).
+- Stacks `edge` (Traefik, dashboard `admin`/`nebula` sur `:8088`) et `nebula` déployées et fonctionnelles.
+
+**Piège rencontré au déploiement** : le tag d'image doit être calculé sur le **poste** (`git rev-parse --short HEAD`) et passé explicitement en variable `TAG` au `docker stack deploy` lancé sur le manager — le manager n'a pas de clone Git du dépôt, donc `$(git rev-parse --short HEAD)` y échoue silencieusement et retombe sur `latest`, un tag qui n'existe pas dans le registry (`failed to resolve reference`). Toujours fixer `TAG` en dur dans la commande distante.
+
+## 10. Scripts de test
+
+`scripts/lib/lab.sh` cible uniquement ce lab (adresses `192.168.56.x` en dur, pas de mode Proxmox ni Docker-in-Docker — ces deux environnements ont été abandonnés et leurs scripts supprimés : `scripts/vm-up.sh`, le dossier `lab/`). Les scripts de `scripts/*.sh` qui le sourcent n'ont pas de valeur par défaut sur leurs paramètres : ils s'arrêtent avec un message explicite si une variable manque, plutôt que de se rabattre silencieusement sur une valeur devinée.
+
+```bash
+bash -c "SERVICE=nebula_comptes bash scripts/fault-tolerance.sh"   # tue un conteneur, verifie la reprogrammation Swarm
+bash -c "N_CIBLE=4 REQUETES=300 bash scripts/scale-out.sh"          # montee en charge
+bash -c "NOUVEAU=v2-$(git rev-parse --short HEAD) bash scripts/rolling-update.sh"   # mise a jour sans coupure
+bash -c "bash scripts/rollback.sh"                                   # version cassee puis retour arriere
+bash -c "bash scripts/smoke.sh 192.168.56.11"                        # chaine applicative complete
+```
+
+Équivalents `make` (les variables se passent sur la ligne de commande, pas de valeur par défaut dans le `Makefile` non plus) : `make fault-tolerance SERVICE=...`, `make scale-out N_CIBLE=... REQUETES=...`, `make rolling-update NOUVEAU=...`, `make rollback`, `make backup-db`, `make restore-db FILE=...`, `make data-restore-test`, `make add-service`.

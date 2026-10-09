@@ -1,44 +1,41 @@
 #!/usr/bin/env bash
-# Outils communs aux scripts de test. A sourcer depuis un script de scripts/ :
+# Outils communs aux scripts de test du cluster Swarm sur les 4 VM VirtualBox
+# (docs/vm-installation-virtualbox.md : registry a part, manager, worker1, worker2).
+# A sourcer depuis un script de scripts/ :
 #   source "$(dirname "$0")/lib/lab.sh"
-# N'execute rien a l'import : uniquement des variables et des fonctions.
+# N'execute rien a l'import : uniquement des constantes et des fonctions.
 export MSYS_NO_PATHCONV=1
 
-# TARGET=lab (defaut) : les noeuds sont des conteneurs Docker-in-Docker.
-# TARGET=vm           : les noeuds sont les VM, joignables en SSH (rebond dans ~/.ssh/config).
-TARGET=${TARGET:-lab}
-
-MANAGER=nebula-lab-manager-1
-W1=nebula-lab-worker1-1
-W2=nebula-lab-worker2-1
-
-if [ "$TARGET" = vm ]; then
-  SSH_USER=${SSH_USER:-manager}
-  MANAGER_IP=${MANAGER_IP:-10.96.238.1}
-  W1_IP=${W1_IP:-10.96.238.2}
-  W2_IP=${W2_IP:-10.96.238.3}
-  REG_HOTE=$MANAGER_IP:5000    # vu depuis l'hote : le registry est sur le manager
-  REG_NOEUDS=$MANAGER_IP:5000  # vu depuis les noeuds : le meme point d'entree
-  # Tunnel SSH (make vm-tunnel) : ports locaux distincts du lab, qui occupe 8080 et 8088
-  API=${API:-http://localhost:18080}
-  DASH=${DASH:-http://localhost:18088}
-else
-  REG_HOTE=localhost:5000      # vu depuis l'hote : build et push
-  REG_NOEUDS=registry:5000     # vu depuis les noeuds : pull
-  API=${API:-http://localhost:8080}
-  DASH=${DASH:-http://localhost:8088}
-fi
+# Topologie fixe du lab : pas des parametres, ce sont des faits sur ces 4 VM precises.
+# A editer ici si le lab change d'adressage, pas a redefinir a chaque commande.
+SSH_USER_MANAGER=manager
+SSH_USER_WORKER=worker       # meme utilisateur sur worker1 et worker2
+MANAGER_IP=192.168.56.11
+W1_IP=192.168.56.12
+W2_IP=192.168.56.13
+REGISTRY_IP=192.168.56.10
+# Registry a part (hors Swarm) : meme adresse vue de l'hote et des noeuds, joignable
+# directement sur le reseau Host-only. Deux noms pour rester compatible avec les scripts
+# qui distinguaient les deux points de vue (REG_HOTE/REG_NOEUDS) ; ici c'est la meme valeur.
+REG_HOTE=$REGISTRY_IP:5000
+REG_NOEUDS=$REGISTRY_IP:5000
+API=http://$MANAGER_IP
+DASH=http://$MANAGER_IP:8088
 
 ECHECS=0
 
-# dk <args...> : client docker du manager ; dkw1 <args...> : client docker du worker1.
-if [ "$TARGET" = vm ]; then
-  dk()   { docker -H "ssh://$SSH_USER@$MANAGER_IP" "$@"; }
-  dkw1() { docker -H "ssh://$SSH_USER@$W1_IP" "$@"; }
-else
-  dk()   { docker exec "$MANAGER" docker "$@"; }
-  dkw1() { docker exec -i "$W1" docker "$@"; }
-fi
+# dk <args...>     : client docker du manager
+# dkw1 <args...>   : client docker du worker1
+# dknode <ip> <args...> : client docker d'un noeud quelconque (ip inconnue a l'avance,
+#                    ex. scripts/fault-tolerance.sh qui cible la tache ou qu'elle tourne)
+dk()     { docker -H "ssh://$SSH_USER_MANAGER@$MANAGER_IP" "$@"; }
+dkw1()   { docker -H "ssh://$SSH_USER_WORKER@$W1_IP" "$@"; }
+dknode() {
+  local ip=$1; shift
+  local u=$SSH_USER_WORKER
+  [ "$ip" = "$MANAGER_IP" ] && u=$SSH_USER_MANAGER
+  docker -H "ssh://$u@$ip" "$@"
+}
 
 # attendre "<commande>" <secondes> : reussit des que la commande reussit
 attendre() {
@@ -51,34 +48,24 @@ attendre() {
 
 conteneur_db() { dkw1 ps -q --filter name=nebula_db | head -1; }
 
-# stack_deploy <nom> <fichier> : deploie une stack avec --with-registry-auth.
+# stack_deploy <nom> <fichier> : deploie une stack avec --with-registry-auth sur le manager.
 # REGISTRY et TAG sont lus dans l'environnement (ex. REGISTRY=... TAG=... stack_deploy ...).
-# En VM, le deploiement se fait SUR le manager, car c'est lui qui a les identifiants du registry.
 # Le fichier est copie dans ~/nebula avant (le manager ne l'a pas forcement).
 stack_deploy() {
   local nom=$1 fichier=$2
-  if [ "$TARGET" = vm ]; then
-    ssh -o BatchMode=yes "$SSH_USER@$MANAGER_IP" "mkdir -p ~/nebula/$(dirname "$fichier")" \
-      && scp -q -o BatchMode=yes "$fichier" "$SSH_USER@$MANAGER_IP:~/nebula/$fichier" \
-      && ssh -o BatchMode=yes "$SSH_USER@$MANAGER_IP" \
-           "cd ~/nebula && REGISTRY='$REGISTRY' TAG='$TAG' docker stack deploy -c $fichier --with-registry-auth $nom"
-  else
-    docker exec -e REGISTRY="${REGISTRY:-}" -e TAG="${TAG:-}" "$MANAGER" \
-      docker stack deploy -c "/repo/$fichier" --with-registry-auth "$nom"
-  fi
+  ssh -o BatchMode=no "$SSH_USER_MANAGER@$MANAGER_IP" "mkdir -p ~/nebula/$(dirname "$fichier")" \
+    && scp -q "$fichier" "$SSH_USER_MANAGER@$MANAGER_IP:~/nebula/$fichier" \
+    && ssh -o BatchMode=no "$SSH_USER_MANAGER@$MANAGER_IP" \
+         "cd ~/nebula && REGISTRY='$REGISTRY' TAG='$TAG' docker stack deploy -c $fichier --with-registry-auth $nom"
 }
 
-# build_push <image:tag> <contexte> [args de build...] : construit puis pousse dans le registry.
-# En VM, le build part vers le manager ; le push doit aussi partir du manager (le poste ne voit pas le registry).
+# build_push <image:tag> <contexte> [args de build...] : build envoye au manager par contexte
+# SSH, push depuis le manager (deja logge sur le registry, le poste ne l'est pas forcement).
 build_push() {
   local img=$1 ctx=$2
   shift 2
-  if [ "$TARGET" = vm ]; then
-    dk build -q "$@" -t "$img" "$ctx" >/dev/null \
-      && ssh -o BatchMode=yes "$SSH_USER@$MANAGER_IP" "docker push -q $img" >/dev/null
-  else
-    docker build -q "$@" -t "$img" "$ctx" >/dev/null && docker push -q "$img" >/dev/null
-  fi
+  dk build -q "$@" -t "$img" "$ctx" >/dev/null \
+    && ssh -o BatchMode=no "$SSH_USER_MANAGER@$MANAGER_IP" "docker push -q $img" >/dev/null
 }
 
 api_ok() { curl -fsS -m 5 "$API/api/health" >/dev/null 2>&1; }
